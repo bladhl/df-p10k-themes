@@ -1,0 +1,581 @@
+#!/usr/bin/env bash
+# df-p10k-themes — additive theme manager for Powerlevel10k.
+# Never mutates ~/.p10k.zsh. Writes a dropin sourced from ~/.zshrc after p10k.
+
+set -euo pipefail
+
+readonly VERSION='0.1.0'
+readonly MARKER_OPEN='# >>> df-p10k-themes >>>'
+readonly MARKER_CLOSE='# <<< df-p10k-themes <<<'
+readonly BACKUP_SUFFIX='.df-p10k-themes.bak'
+readonly MAX_SYMLINK_DEPTH=40
+
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+readonly CONFIG_DIR="$XDG_CONFIG_HOME/df-p10k-themes"
+readonly ACTIVE_FILE="$CONFIG_DIR/active.zsh"
+readonly ZSHRC="${DF_P10K_THEMES_ZSHRC:-$HOME/.zshrc}"
+readonly ZSHRC_BAK="${ZSHRC}${BACKUP_SUFFIX}"
+
+#---------- logging ----------
+
+log_info() { printf '\033[32m✓\033[0m %s\n' "$*"; }
+log_warn() { printf '\033[33m!\033[0m %s\n' "$*" >&2; }
+log_err()  { printf '\033[31m✗\033[0m %s\n' "$*" >&2; }
+die()      { log_err "$*"; exit 1; }
+usage_error() { log_err "$*"; exit 2; }
+
+#---------- theme discovery ----------
+
+executable_path() {
+  local path="${BASH_SOURCE[0]}"
+  if [[ "$path" != */* ]]; then
+    path="$(command -v "$path")" || return 1
+  elif [[ "$path" != /* ]]; then
+    path="$PWD/$path"
+  fi
+  resolve_write_target "$path"
+}
+
+themes_dir() {
+  if [[ -n "${DF_P10K_THEMES_DIR:-}" ]]; then
+    printf '%s' "$DF_P10K_THEMES_DIR" || return $?
+    return
+  fi
+  local script_path script_dir
+  script_path="$(executable_path)" || die "cannot resolve executable path: ${BASH_SOURCE[0]}"
+  script_dir="$(cd -P "$(dirname "$script_path")" && pwd)" || return $?
+  local repo_themes="$script_dir/../themes"
+  if [[ -f "$script_dir/../Makefile" && -d "$repo_themes" ]]; then
+    (cd "$repo_themes" && pwd) || return $?
+    return
+  fi
+  local prefix_themes="$script_dir/../share/df-p10k-themes/themes"
+  if [[ -d "$prefix_themes" ]]; then
+    (cd "$prefix_themes" && pwd) || return $?
+    return
+  fi
+  local installed="$XDG_DATA_HOME/df-p10k-themes/themes"
+  if [[ -d "$installed" ]]; then
+    printf '%s' "$installed" || return $?
+    return
+  fi
+  die "themes directory not found (looked in $repo_themes, $prefix_themes, and $installed)"
+}
+
+theme_path() {
+  local name="$1" dir
+  dir="$(themes_dir)" || return $?
+  printf '%s/%s.zsh' "$dir" "$name" || return $?
+}
+
+theme_exists() {
+  local path
+  path="$(theme_path "$1")" || return $?
+  [[ -f "$path" ]]
+}
+
+list_theme_names() {
+  local dir
+  dir="$(themes_dir)" || return $?
+  local f
+  for f in "$dir"/*.zsh; do
+    [[ -e "$f" ]] || continue
+    local base
+    base="$(basename "$f" .zsh)" || return $?
+    [[ "$base" == _* ]] && continue
+    printf '%s\n' "$base" || return $?
+  done
+}
+
+# Parse THEME_ACCENTS=(...) from a theme file. Returns space-separated names.
+theme_accents_of() {
+  local path="$1"
+  awk '
+    /^[[:space:]]*THEME_ACCENTS=\(/ {
+      sub(/.*THEME_ACCENTS=\(/, "")
+      collecting = 1
+    }
+    collecting {
+      line = $0
+      if (match(line, /\)/)) {
+        sub(/\).*/, "", line)
+        accents = accents " " line
+        collecting = 0
+        next
+      }
+      accents = accents " " line
+    }
+    END {
+      gsub(/[[:space:]]+/, " ", accents)
+      sub(/^ /, "", accents)
+      sub(/ $/, "", accents)
+      printf "%s", accents
+    }
+  ' "$path" || return $?
+}
+
+theme_default_accent_of() {
+  local path="$1"
+  awk -F'=' '
+    /^[[:space:]]*THEME_ACCENT_DEFAULT=/ {
+      val = $2
+      gsub(/["'\'']/, "", val)
+      gsub(/[[:space:]]/, "", val)
+      print val
+      exit
+    }
+  ' "$path" || return $?
+}
+
+#---------- file helpers ----------
+
+cleanup_transaction() {
+  if [[ -n "${BACKUP_TO_ROLLBACK:-}" && -e "${TEMP_FILE_TO_CLEAN:-}" ]]; then
+    rm -f "$BACKUP_TO_ROLLBACK" || :
+  fi
+  rm -f "${TEMP_FILE_TO_CLEAN:-}" "${SECOND_TEMP_FILE_TO_CLEAN:-}" || :
+}
+
+set_temp_cleanup() {
+  TEMP_FILE_TO_CLEAN="$1"
+  SECOND_TEMP_FILE_TO_CLEAN=''
+  BACKUP_TO_ROLLBACK=''
+  trap cleanup_transaction EXIT || return $?
+  trap 'exit 1' HUP INT TERM || return $?
+}
+
+set_secondary_temp_cleanup() {
+  SECOND_TEMP_FILE_TO_CLEAN="$1"
+}
+
+clear_temp_cleanup() {
+  TEMP_FILE_TO_CLEAN=''
+  SECOND_TEMP_FILE_TO_CLEAN=''
+  BACKUP_TO_ROLLBACK=''
+  trap - EXIT HUP INT TERM || return $?
+}
+
+resolve_write_target() {
+  local path="$1" link link_dir
+  local depth=0
+
+  while [[ -L "$path" ]]; do
+    (( depth += 1 ))
+    if (( depth > MAX_SYMLINK_DEPTH )); then
+      log_err "too many symlinks while resolving $1"
+      return 1
+    fi
+    link="$(readlink "$path")" || {
+      log_err "cannot read symlink: $path"
+      return 1
+    }
+    if [[ "$link" == /* ]]; then
+      path="$link"
+    else
+      link_dir="$(dirname "$path")" || return $?
+      path="$link_dir/$link"
+    fi
+  done
+
+  if (( depth > 0 )) && [[ ! -e "$path" ]]; then
+    log_err "broken symlink: $1"
+    return 1
+  fi
+
+  printf '%s' "$path" || return $?
+}
+
+begin_atomic_write() {
+  local dest="$1"
+  ATOMIC_TARGET="$(resolve_write_target "$dest")" || return 1
+  if [[ -e "$ATOMIC_TARGET" && ! -f "$ATOMIC_TARGET" ]]; then
+    log_err "write target is not a regular file: $ATOMIC_TARGET"
+    return 1
+  fi
+
+  ATOMIC_CANDIDATE="$(mktemp "${ATOMIC_TARGET}.XXXXXX")" || return 1
+  set_temp_cleanup "$ATOMIC_CANDIDATE" || return $?
+  if [[ -e "$ATOMIC_TARGET" ]]; then
+    cp -p "$ATOMIC_TARGET" "$ATOMIC_CANDIDATE" || return $?
+  fi
+}
+
+commit_atomic_write() {
+  mv "$ATOMIC_CANDIDATE" "$ATOMIC_TARGET" || return $?
+  ATOMIC_CANDIDATE=''
+  ATOMIC_TARGET=''
+  clear_temp_cleanup || return $?
+}
+
+marker_state() {
+  awk -v mark_open="$MARKER_OPEN" -v mark_close="$MARKER_CLOSE" '
+    $0 == mark_open {
+      if (opened || closed || inside) invalid = 1
+      opened++
+      inside = 1
+      next
+    }
+    $0 == mark_close {
+      if (!inside || closed) invalid = 1
+      closed++
+      inside = 0
+      next
+    }
+    END {
+      if (invalid || inside || opened != closed || opened > 1) print "malformed"
+      else if (opened == 1) print "present"
+      else print "absent"
+    }
+  ' "$1" || return $?
+}
+
+has_marker() {
+  local state
+  [[ -f "$1" ]] || return 1
+  state="$(marker_state "$1")" || return $?
+  [[ "$state" == present ]]
+}
+
+strip_marker_block() {
+  local src="$1" final_newline=0 last_byte
+  if [[ -s "$src" ]]; then
+    last_byte="$(tail -c 1 "$src")" || return $?
+  fi
+  if [[ -s "$src" && -z "$last_byte" ]]; then
+    final_newline=1
+  fi
+  LC_ALL=C awk -v mark_open="$MARKER_OPEN" -v mark_close="$MARKER_CLOSE" -v final_newline="$final_newline" '
+    $0 == mark_open  {
+      if (n > 0 && lines[n] ~ /^[[:space:]]*$/) n--
+      skip = 1
+      next
+    }
+    $0 == mark_close { skip = 0; next }
+    !skip { lines[++n] = $0 }
+    END {
+      for (i = 1; i <= n; i++) {
+        printf "%s", lines[i]
+        if (i < n || final_newline) printf "\n"
+      }
+    }
+  ' "$src" || return $?
+}
+
+render_zshrc_with_hook() {
+  local src="$1" last_byte
+  cat "$src" || return $?
+  if [[ -s "$src" ]]; then
+    last_byte="$(tail -c 1 "$src")" || return $?
+    if [[ -n "$last_byte" ]]; then
+      printf '\n' || return $?
+    fi
+    printf '\n' || return $?
+  fi
+  printf '%s\n' "$MARKER_OPEN" || return $?
+  cat <<'EOF' || return $?
+[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/df-p10k-themes/active.zsh" ] \
+  && source "${XDG_CONFIG_HOME:-$HOME/.config}/df-p10k-themes/active.zsh"
+EOF
+  printf '%s\n' "$MARKER_CLOSE" || return $?
+}
+
+render_active_file() {
+  local theme="$1" accent="$2" resolved_accent="$3" theme_file="$4" bindings_file="$5"
+  printf '# df-p10k-themes: theme=%s accent=%s\n' "$theme" "$resolved_accent" || return $?
+  printf '# regenerate via: df-p10k-themes apply %s%s\n' "$theme" "${accent:+ $accent}" || return $?
+  printf '# this file is auto-generated; edit themes/ in the repo instead\n\n' || return $?
+  printf '#=== palette + roles (from themes/%s.zsh) ===\n' "$theme" || return $?
+  cat "$theme_file" || return $?
+  printf '\n#=== shared bindings (from themes/_bindings.zsh) ===\n' || return $?
+  cat "$bindings_file" || return $?
+  if [[ -n "$accent" ]]; then
+    printf '\n#=== accent overlay ===\n' || return $?
+    printf 'set_accent %q\n' "$accent" || return $?
+  fi
+}
+
+#---------- subcommands ----------
+
+cmd_init() {
+  (( $# == 0 )) || usage_error "usage: df-p10k-themes init"
+  [[ -e "$ZSHRC" || -L "$ZSHRC" ]] || die "$ZSHRC not found — create it first or set DF_P10K_THEMES_ZSHRC"
+
+  local zshrc_target state source_snapshot compare_status backup_created=0 backup_exists=0
+  zshrc_target="$(resolve_write_target "$ZSHRC")" || exit 1
+  [[ -f "$zshrc_target" ]] || die "$ZSHRC is not a regular file"
+  state="$(marker_state "$zshrc_target")" || return $?
+  [[ "$state" != malformed ]] || die "malformed or duplicate df-p10k-themes markers in $ZSHRC"
+
+  if [[ "$state" == present ]]; then
+    log_info "already initialized — hook present in $ZSHRC"
+    return 0
+  fi
+
+  if [[ -e "$ZSHRC_BAK" || -L "$ZSHRC_BAK" ]]; then
+    backup_exists=1
+    [[ -f "$ZSHRC_BAK" ]] || die "backup path exists but is not a regular file: $ZSHRC_BAK"
+  fi
+
+  begin_atomic_write "$zshrc_target" || return $?
+  source_snapshot="$(mktemp "${zshrc_target}.source.XXXXXX")" || return $?
+  set_secondary_temp_cleanup "$source_snapshot"
+  cp -p "$zshrc_target" "$source_snapshot" || return $?
+  render_zshrc_with_hook "$source_snapshot" >"$ATOMIC_CANDIDATE" || return $?
+
+  if cmp -s "$zshrc_target" "$source_snapshot"; then
+    :
+  else
+    compare_status=$?
+    log_err "$ZSHRC changed while init was preparing the hook"
+    return "$compare_status"
+  fi
+
+  if (( backup_exists == 0 )); then
+    BACKUP_TO_ROLLBACK="$ZSHRC_BAK"
+    cp -p "$source_snapshot" "$ZSHRC_BAK" || return $?
+    backup_created=1
+  fi
+
+  if cmp -s "$zshrc_target" "$source_snapshot"; then
+    :
+  else
+    compare_status=$?
+    log_err "$ZSHRC changed while init was publishing its backup"
+    return "$compare_status"
+  fi
+
+  rm -f "$source_snapshot" || return $?
+  SECOND_TEMP_FILE_TO_CLEAN=''
+  commit_atomic_write || return $?
+
+  if (( backup_created == 1 )); then
+    log_info "backed up $ZSHRC → $ZSHRC_BAK"
+  fi
+
+  log_info "added hook to $ZSHRC"
+  log_info "next: df-p10k-themes apply <theme>"
+}
+
+cmd_apply() {
+  (( $# >= 1 && $# <= 2 )) || usage_error "usage: df-p10k-themes apply <theme> [accent]"
+  local theme="$1" accent="${2:-}"
+
+  if ! theme_exists "$theme"; then
+    log_err "unknown theme: $theme (see: df-p10k-themes list)"
+    exit 2
+  fi
+
+  local theme_path bindings_path themes_root accents resolved_accent
+  themes_root="$(themes_dir)" || return $?
+  theme_path="$(theme_path "$theme")" || return $?
+  bindings_path="$themes_root/_bindings.zsh"
+  [[ -f "$bindings_path" ]] || die "bindings file missing: $bindings_path"
+
+  accents="$(theme_accents_of "$theme_path")" || return $?
+  if [[ -n "$accent" ]]; then
+    resolved_accent="$accent"
+  else
+    resolved_accent="$(theme_default_accent_of "$theme_path")" || return $?
+  fi
+  [[ -n "$resolved_accent" ]] || die "theme '$theme' does not declare a default accent"
+  if [[ " $accents " != *" $resolved_accent "* ]]; then
+    log_err "unknown accent '$resolved_accent' for theme '$theme'"
+    log_err "available: $accents"
+    exit 2
+  fi
+
+  has_marker "$ZSHRC" || log_warn "hook not in $ZSHRC — run: df-p10k-themes init"
+
+  mkdir -p "$CONFIG_DIR" || return $?
+  begin_atomic_write "$ACTIVE_FILE" || return $?
+  render_active_file "$theme" "$accent" "$resolved_accent" "$theme_path" "$bindings_path" >"$ATOMIC_CANDIDATE" || return $?
+  zsh -n "$ATOMIC_CANDIDATE" || return $?
+  zsh -f -c 'set -e; source "$1"' df-p10k-themes "$ATOMIC_CANDIDATE" || return $?
+  commit_atomic_write || return $?
+
+  log_info "applied $theme (accent: $resolved_accent)"
+  log_info "reload: exec zsh"
+}
+
+cmd_list() {
+  (( $# == 0 )) || usage_error "usage: df-p10k-themes list"
+  local dir names sorted
+  dir="$(themes_dir)" || return $?
+  names="$(list_theme_names)" || return $?
+  [[ -n "$names" ]] || return 0
+  sorted="$(sort <<<"$names")" || return $?
+  local name
+  while IFS= read -r name; do
+    local default
+    local path
+    path="$(theme_path "$name")" || return $?
+    default="$(theme_default_accent_of "$path")" || return $?
+    printf '  %-24s default accent: %s\n' "$name" "${default:--}"
+  done <<<"$sorted"
+}
+
+cmd_accents() {
+  (( $# == 1 )) || usage_error "usage: df-p10k-themes accents <theme>"
+  local theme="$1"
+  theme_exists "$theme" || die "unknown theme: $theme"
+  local path accents default
+  path="$(theme_path "$theme")" || return $?
+  accents="$(theme_accents_of "$path")" || return $?
+  default="$(theme_default_accent_of "$path")" || return $?
+  printf 'theme:   %s\n' "$theme"
+  printf 'default: %s\n' "${default:--}"
+  printf 'accents:\n'
+  local a
+  for a in $accents; do
+    printf '  %s\n' "$a"
+  done
+}
+
+cmd_current() {
+  (( $# == 0 )) || usage_error "usage: df-p10k-themes current"
+  if [[ ! -f "$ACTIVE_FILE" ]]; then
+    printf 'no active theme (run: df-p10k-themes apply <theme>)\n'
+    return 0
+  fi
+  local header theme accent
+  header="$(head -n 1 "$ACTIVE_FILE")" || return $?
+  if [[ "$header" =~ theme=([^[:space:]]+)\ accent=([^[:space:]]+) ]]; then
+    theme="${BASH_REMATCH[1]}"
+    accent="${BASH_REMATCH[2]}"
+    printf '%s (accent: %s)\n' "$theme" "$accent"
+  else
+    printf 'active theme present but missing header metadata\n'
+  fi
+}
+
+cmd_uninstall() {
+  (( $# == 0 )) || usage_error "usage: df-p10k-themes uninstall"
+  local removed=0 restore_backup=0 remove_backup=0 compare_status
+  local zshrc_target='' state=absent
+  if [[ -e "$ZSHRC" || -L "$ZSHRC" ]]; then
+    zshrc_target="$(resolve_write_target "$ZSHRC")" || exit 1
+    [[ -f "$zshrc_target" ]] || die "$ZSHRC is not a regular file"
+    state="$(marker_state "$zshrc_target")" || return $?
+    [[ "$state" != malformed ]] || die "malformed or duplicate df-p10k-themes markers in $ZSHRC"
+  fi
+
+  if [[ "$state" == present ]]; then
+    begin_atomic_write "$zshrc_target" || return $?
+    if [[ -f "$ZSHRC_BAK" ]]; then
+      render_zshrc_with_hook "$ZSHRC_BAK" >"$ATOMIC_CANDIDATE" || return $?
+      if cmp -s "$ATOMIC_CANDIDATE" "$zshrc_target"; then
+        restore_backup=1
+      else
+        compare_status=$?
+        if (( compare_status > 1 )); then
+          return "$compare_status"
+        fi
+      fi
+    fi
+
+    if (( restore_backup == 1 )); then
+      cat "$ZSHRC_BAK" >"$ATOMIC_CANDIDATE" || return $?
+    else
+      strip_marker_block "$zshrc_target" >"$ATOMIC_CANDIDATE" || return $?
+    fi
+
+    if [[ -f "$ZSHRC_BAK" ]]; then
+      if cmp -s "$ATOMIC_CANDIDATE" "$ZSHRC_BAK"; then
+        remove_backup=1
+      else
+        compare_status=$?
+        if (( compare_status > 1 )); then
+          return "$compare_status"
+        fi
+      fi
+    fi
+
+    commit_atomic_write || return $?
+    log_info "removed hook from $ZSHRC"
+    removed=1
+    if (( remove_backup == 1 )); then
+      rm -f "$ZSHRC_BAK" || return $?
+      log_info "removed redundant backup $ZSHRC_BAK"
+    fi
+  fi
+
+  if [[ -f "$ACTIVE_FILE" ]]; then
+    rm -f "$ACTIVE_FILE"
+    log_info "removed $ACTIVE_FILE"
+    removed=1
+  fi
+  if [[ -d "$CONFIG_DIR" ]] && [[ -z "$(ls -A "$CONFIG_DIR")" ]]; then
+    rmdir "$CONFIG_DIR"
+  fi
+
+  if (( removed == 0 )); then
+    log_info "nothing to remove — already uninstalled"
+  fi
+}
+
+print_help() {
+  cat <<'EOF'
+df-p10k-themes — additive theme manager for Powerlevel10k
+
+USAGE
+  df-p10k-themes init                       set up the ~/.zshrc hook (one-time)
+  df-p10k-themes apply <theme> [accent]     apply a theme; optional accent override
+  df-p10k-themes <theme> [accent]           shortcut for `apply`
+  df-p10k-themes list                       list available themes
+  df-p10k-themes accents <theme>            list accent options for a theme
+  df-p10k-themes current                    show the currently active theme
+  df-p10k-themes uninstall                  remove hook and active theme
+  df-p10k-themes -h | --help                this help
+  df-p10k-themes -V | --version             print version
+
+ENVIRONMENT
+  DF_P10K_THEMES_DIR       override themes directory (for development)
+  DF_P10K_THEMES_ZSHRC     override ~/.zshrc path (for testing)
+  XDG_CONFIG_HOME          defaults to $HOME/.config
+  XDG_DATA_HOME            defaults to $HOME/.local/share
+
+Your ~/.p10k.zsh is never modified.
+EOF
+}
+
+cmd_help() {
+  (( $# == 0 )) || usage_error "usage: df-p10k-themes --help"
+  print_help
+}
+
+cmd_version() {
+  (( $# == 0 )) || usage_error "usage: df-p10k-themes --version"
+  printf 'df-p10k-themes %s\n' "$VERSION"
+}
+
+#---------- dispatcher ----------
+
+main() {
+  local cmd="${1:-}"
+  case "$cmd" in
+    '') cmd_help ;;
+    -h|--help|help) shift; cmd_help "$@" ;;
+    -V|--version|version) shift; cmd_version "$@" ;;
+    init)      shift; cmd_init "$@" ;;
+    apply)     shift; cmd_apply "$@" ;;
+    list)      shift; cmd_list "$@" ;;
+    accents)   shift; cmd_accents "$@" ;;
+    current)   shift; cmd_current "$@" ;;
+    uninstall) shift; cmd_uninstall "$@" ;;
+    *)
+      (( $# <= 2 )) || usage_error "usage: df-p10k-themes <theme> [accent]"
+      if theme_exists "$cmd"; then
+        cmd_apply "$@"
+      else
+        log_err "unknown command or theme: $cmd"
+        printf '\n' >&2
+        print_help >&2
+        exit 2
+      fi
+      ;;
+  esac
+}
+
+main "$@"

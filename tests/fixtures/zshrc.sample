@@ -1,0 +1,11 @@
+# Sample .zshrc used by bats tests.
+# Realistic enough to verify init/uninstall round-trip without coupling to a
+# specific shell setup.
+
+export EDITOR=vim
+export PAGER=less
+
+alias ll='ls -la'
+alias gs='git status'
+
+[[ -r ~/.p10k.zsh ]] && source ~/.p10k.zsh
