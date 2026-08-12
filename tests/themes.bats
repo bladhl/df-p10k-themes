@@ -108,6 +108,24 @@ theme_files() {
   [ "$status" -eq 0 ] || { echo "missing os-release: $output" >&2; return 1; }
 }
 
+# Previews are optional, so this only checks the ones that exist — but any
+# that does exist must match the gallery, whether vhs or a human made it.
+@test "each gallery preview is a 1400x260 PNG named after a theme" {
+  local dir="$REPO_ROOT/assets/screenshots"
+  [ -d "$dir" ] || skip "no gallery yet"
+  command -v file >/dev/null 2>&1 || skip "file(1) not available"
+  local f name info
+  for f in "$dir"/*.png; do
+    [[ -e "$f" ]] || continue
+    name="$(basename "$f" .png)"
+    [ -f "$THEMES_DIR/$name.zsh" ] \
+      || { echo "$name.png does not match any theme file" >&2; return 1; }
+    info="$(file -b "$f")"
+    [[ "$info" == PNG*"1400 x 260"* ]] \
+      || { echo "$name.png: expected a 1400x260 PNG, got: $info" >&2; return 1; }
+  done
+}
+
 @test "the default accent of every theme is a valid accent override" {
   df_cli init >/dev/null
   local name theme default
