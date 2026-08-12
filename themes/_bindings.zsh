@@ -24,6 +24,63 @@
 # than a few colors repeated everywhere.
 #
 
+#--- os icon ----------------------------------------------------------------
+# P10k picks the glyph from /etc/os-release (or uname) but always paints it
+# with the stock foreground. Map the detected OS to the closest hue in the
+# active palette so the icon keeps its vendor identity — Ubuntu orange,
+# Android green, Debian red — while still belonging to the theme.
+#
+# Keys are /etc/os-release IDs. Compound IDs (opensuse-leap, manjaro-arm)
+# fall back to the part before the first dash; anything unmapped uses the
+# theme accent. Adding a distro is one entry here.
+typeset -gA _DF_P10K_OS_COLOR=(
+  ubuntu      $c_peach     debian      $c_red       raspbian    $c_pink
+  arch        $c_sapphire  artix       $c_cyan      manjaro     $c_green
+  endeavouros $c_mauve     garuda      $c_ruby      cachyos     $c_green
+  fedora      $c_blue      rhel        $c_red       centos      $c_purple
+  rocky       $c_green     almalinux   $c_blue      amzn        $c_peach
+  opensuse    $c_green     sabayon     $c_subtext
+  linuxmint   $c_green     elementary  $c_sky       zorin       $c_sky
+  pop         $c_cyan      neon        $c_teal      mageia      $c_sapphire
+  alpine      $c_blue      gentoo      $c_purple    slackware   $c_blue
+  nixos       $c_sapphire  guix        $c_yellow    void        $c_green
+  devuan      $c_purple    kali        $c_blue      coreos      $c_peach
+  aosc        $c_red
+  android     $c_green     macos       $c_subtext   windows     $c_sky
+  freebsd     $c_red       solaris     $c_red
+)
+
+() {
+  emulate -L zsh
+  local id=''
+  case $OSTYPE in
+    darwin*)                              id=macos ;;
+    freebsd*|openbsd*|netbsd*|dragonfly*) id=freebsd ;;
+    solaris*)                             id=solaris ;;
+    cygwin*|msys*|mingw*)                 id=windows ;;
+    linux-android*)                       id=android ;;
+    *)
+      # _DF_P10K_OS_RELEASE exists so the tests can point at a fixture;
+      # nothing but the test suite is expected to set it.
+      local osrelease=${_DF_P10K_OS_RELEASE:-/etc/os-release}
+      # -f as well as -r: reading a fifo or a character device here would
+      # hang or never end, and this runs on every interactive shell.
+      if [[ -f $osrelease && -r $osrelease ]]; then
+        local -a ids=(${(M)${(f)"$(<$osrelease)"}:#ID=*})
+        if (( $#ids == 1 )); then
+          # os-release(5) restricts ID to [a-z0-9._-], so stripping blanks
+          # is lossless — and it saves a CRLF file from resolving to a
+          # lookalike id that carries a trailing \r and misses the map.
+          id=${${(Q)${ids[1]#ID=}}//[[:space:]]/}
+        fi
+      elif [[ -e /etc/artix-release ]]; then
+        id=artix
+      fi
+      ;;
+  esac
+  typeset -g POWERLEVEL9K_OS_ICON_FOREGROUND=${_DF_P10K_OS_COLOR[$id]:-${_DF_P10K_OS_COLOR[${id%%-*}]:-$c_accent}}
+}
+
 #--- prompt char ------------------------------------------------------------
 typeset -g POWERLEVEL9K_PROMPT_CHAR_OK_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=$c_ok
 typeset -g POWERLEVEL9K_PROMPT_CHAR_ERROR_{VIINS,VICMD,VIVIS,VIOWR}_FOREGROUND=$c_error
