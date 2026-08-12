@@ -24,7 +24,7 @@ screenshots:
 	./scripts/capture-screenshots.sh $(THEME)
 
 syntax:
-	@set -e; for t in themes/*.zsh; do zsh -n "$$t" && printf 'ok  %s\n' "$$t"; done
+	@set -e; for t in themes/*.zsh; do zsh -n "$$t"; printf 'ok  %s\n' "$$t"; done
 
 install:
 	install -d '$(BIN_DIR)' '$(DATA_DIR)/themes'
