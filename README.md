@@ -1,5 +1,8 @@
 # df-p10k-themes
 
+[![ci](https://github.com/bladhl/df-p10k-themes/actions/workflows/ci.yml/badge.svg)](https://github.com/bladhl/df-p10k-themes/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 > Swap palettes and accent colors on your Powerlevel10k prompt — without ever
 > touching your `~/.p10k.zsh`.
 
@@ -15,13 +18,61 @@ palette-aware `active.zsh` into your config dir and sources it from `.zshrc`
 
 ## Theme previews
 
-![Powerlevel10k prompt using Tokyo Night with a blue accent.](assets/screenshots/tokyo-night-blue.png)
+Every theme on its default accent, rendered with p10k's own `lean` preset.
 
-*Tokyo Night with the `blue` accent.*
+### Dark
 
-![Powerlevel10k prompt using Catppuccin Macchiato with a pink accent.](assets/screenshots/catppuccin-macchiato-pink.png)
+![Catppuccin Mocha prompt preview.](assets/screenshots/catppuccin-mocha.png)
+*`catppuccin-mocha`*
 
-*Catppuccin Macchiato with the `pink` accent.*
+![Catppuccin Macchiato prompt preview.](assets/screenshots/catppuccin-macchiato.png)
+*`catppuccin-macchiato`*
+
+![Catppuccin Frappé prompt preview.](assets/screenshots/catppuccin-frappe.png)
+*`catppuccin-frappe`*
+
+![Tokyo Night prompt preview.](assets/screenshots/tokyo-night.png)
+*`tokyo-night`*
+
+![Dracula prompt preview.](assets/screenshots/dracula.png)
+*`dracula`*
+
+![Kanagawa prompt preview.](assets/screenshots/kanagawa.png)
+*`kanagawa`*
+
+![Rosé Pine prompt preview.](assets/screenshots/rose-pine.png)
+*`rose-pine`*
+
+![Nord prompt preview.](assets/screenshots/nord.png)
+*`nord`*
+
+![Gruvbox Dark prompt preview.](assets/screenshots/gruvbox-dark.png)
+*`gruvbox-dark`*
+
+![Everforest Dark prompt preview.](assets/screenshots/everforest-dark.png)
+*`everforest-dark`*
+
+![One Dark Pro prompt preview.](assets/screenshots/one-dark-pro.png)
+*`one-dark-pro`*
+
+![Solarized Dark prompt preview.](assets/screenshots/solarized-dark.png)
+*`solarized-dark`*
+
+### Light
+
+![Catppuccin Latte prompt preview.](assets/screenshots/catppuccin-latte.png)
+*`catppuccin-latte`*
+
+![Rosé Pine Dawn prompt preview.](assets/screenshots/rose-pine-dawn.png)
+*`rose-pine-dawn`*
+
+![Solarized Light prompt preview.](assets/screenshots/solarized-light.png)
+*`solarized-light`*
+
+Previews are optional and captured per theme, so the OS icon reflects whoever
+contributed it. `make screenshots THEME=<name>` does one with
+[vhs](https://github.com/charmbracelet/vhs); by hand is fine too, as long as
+it lands as a 1400×260 PNG. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
@@ -81,16 +132,23 @@ df-p10k-themes catppuccin-mocha peach        # same as `apply catppuccin-mocha p
 
 ## Available themes
 
-| Theme                | Default accent | Notes                       |
-|----------------------|----------------|-----------------------------|
-| `catppuccin-mocha`   | `mauve`        | Dark (default Catppuccin)   |
-| `catppuccin-frappe`  | `mauve`        | Dark (warmer)               |
-| `catppuccin-macchiato` | `mauve`      | Dark (between Mocha/Frappé) |
-| `catppuccin-latte`   | `blue`         | Light                       |
-| `tokyo-night`        | `blue`         | Dark                        |
-| `one-dark-pro`       | `blue`         | Dark (Atom-derived)         |
-| `gruvbox-dark`       | `orange`       | Dark (retro)                |
-| `nord`               | `frost2`       | Dark (cool)                 |
+| Theme                  | Default accent | Notes                       |
+|------------------------|----------------|-----------------------------|
+| `catppuccin-mocha`     | `mauve`        | Dark (default Catppuccin)   |
+| `catppuccin-frappe`    | `mauve`        | Dark (warmer)               |
+| `catppuccin-macchiato` | `mauve`        | Dark (between Mocha/Frappé) |
+| `catppuccin-latte`     | `blue`         | Light                       |
+| `tokyo-night`          | `blue`         | Dark                        |
+| `one-dark-pro`         | `blue`         | Dark (Atom-derived)         |
+| `gruvbox-dark`         | `orange`       | Dark (retro)                |
+| `nord`                 | `frost2`       | Dark (cool)                 |
+| `dracula`              | `purple`       | Dark (high contrast)        |
+| `rose-pine`            | `iris`         | Dark (muted, six accents)   |
+| `rose-pine-dawn`       | `iris`         | Light                       |
+| `kanagawa`             | `crystalBlue`  | Dark (warm, wide palette)   |
+| `everforest-dark`      | `green`        | Dark (low contrast, green)  |
+| `solarized-dark`       | `blue`         | Dark (the original)         |
+| `solarized-light`      | `blue`         | Light                       |
 
 Run `df-p10k-themes accents <theme>` to see all accent options for a theme.
 
@@ -117,41 +175,35 @@ The uninstall verifies the resulting `.zshrc` is byte-identical to the backup
 before removing the backup. If you made other edits to `.zshrc` after running
 `init`, the backup is left in place at `~/.zshrc.df-p10k-themes.bak`.
 
-## Contributing a theme
+## OS icon colors
 
-1. Copy `themes/_template.zsh` to `themes/<your-theme>.zsh`.
-2. Fill in `THEME_PALETTE`, `THEME_ACCENTS`, `THEME_ACCENT_DEFAULT`, and the
-   `c_*` role globals.
-3. `make syntax` to verify your file parses; `make test` to verify it composes
-   into a valid `active.zsh`.
-4. Open a PR.
+Powerlevel10k already picks the right glyph for your distribution, but paints
+every one of them the same color. `df-p10k-themes` maps the detected OS to the
+closest hue in the active palette, so the icon keeps its vendor identity while
+staying inside the theme:
 
-The `_bindings.zsh` file owns every `POWERLEVEL9K_*_FOREGROUND` assignment and
-the `my_git_formatter` redefinition, so theme files only deal with palette and
-semantic role mapping. See `themes/catppuccin-mocha.zsh` for the reference
-shape.
+| OS                                   | Hue         |
+|--------------------------------------|-------------|
+| Ubuntu, Amazon Linux                 | orange      |
+| Debian, RHEL, FreeBSD                | red         |
+| Android, Mint, Manjaro, openSUSE, Rocky, Void | green |
+| Arch, NixOS, Mageia                  | sapphire    |
+| Fedora, Alpine, Kali, AlmaLinux, Slackware | blue  |
+| Gentoo, Devuan, CentOS               | purple      |
+| Windows, elementary, Zorin           | sky         |
+| macOS                                | subtext     |
 
-## Development
+Unmapped systems fall back to the theme accent. The full table lives in
+`themes/_bindings.zsh` — adding a distro is one line.
 
-```sh
-make test     # bats specs
-make lint     # shellcheck on bin/df-p10k-themes
-make syntax   # zsh -n on every theme file
-```
+> The `lean` and `classic` presets ship `os_icon` commented out. If you don't
+> see the icon at all, add `os_icon` to `POWERLEVEL9K_LEFT_PROMPT_ELEMENTS` in
+> your `~/.p10k.zsh` — that part is p10k's config, not ours.
 
-Bats install:
+## Contributing
 
-```sh
-# Arch / Manjaro
-sudo pacman -S bash-bats shellcheck
-
-# macOS
-brew install bats-core shellcheck
-
-# from source
-git clone https://github.com/bats-core/bats-core.git
-sudo bats-core/install.sh /usr/local
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the theme contract, the OS icon
+map, and the test commands (`make test`, `make lint`, `make syntax`).
 
 ## Design notes
 
