@@ -1,0 +1,32 @@
+name: Theme request
+description: Suggest a palette to ship as a built-in theme
+labels: [theme]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Adding a theme is mostly filling in a palette — see
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md). PRs are very welcome.
+
+  - type: input
+    id: name
+    attributes:
+      label: Theme name
+      placeholder: Rosé Pine Moon
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Upstream palette
+      description: Link to the canonical color definitions.
+    validations:
+      required: true
+
+  - type: input
+    id: variant
+    attributes:
+      label: Light or dark
+    validations:
+      required: true

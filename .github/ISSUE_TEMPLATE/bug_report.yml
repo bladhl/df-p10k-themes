@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in the CLI or a theme behaves incorrectly
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. df-p10k-themes apply tokyo-night
+        2. exec zsh
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `df-p10k-themes --version`
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, terminal emulator, and how Powerlevel10k is installed.
+      placeholder: |
+        OS: Arch Linux
+        Terminal: Ghostty
+        P10k: zinit
+    validations:
+      required: true
+
+  - type: textarea
+    id: active
+    attributes:
+      label: Active dropin header
+      description: >
+        First three lines of `~/.config/df-p10k-themes/active.zsh`, if the
+        issue involves an applied theme.
+      render: shell
