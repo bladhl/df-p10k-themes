@@ -92,6 +92,12 @@ block from `.zshrc` and the override file. Your prompt config is yours.
 ## Install
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/bladhl/df-p10k-themes/main/install.sh | bash
+```
+
+Or from a checkout:
+
+```sh
 git clone https://github.com/bladhl/df-p10k-themes.git
 cd df-p10k-themes
 ./install.sh

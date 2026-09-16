@@ -50,3 +50,50 @@ EOF
   [[ "$output" == *"catppuccin-mocha"* ]]
   [[ "$output" == *"tokyo-night"* ]]
 }
+
+# Shadow curl with a stub that serves a GitHub-shaped tarball of this checkout
+# (top-level dir, like archive/refs/heads/main.tar.gz) and records the call.
+fake_curl_tarball() {
+  mkdir -p "$SANDBOX/tarball/df-p10k-themes-main" "$SANDBOX/fake-bin"
+  cp -R "$REPO_ROOT/Makefile" "$REPO_ROOT/bin" "$REPO_ROOT/themes" \
+    "$SANDBOX/tarball/df-p10k-themes-main/"
+  tar -czf "$SANDBOX/main.tar.gz" -C "$SANDBOX/tarball" df-p10k-themes-main
+  cat >"$SANDBOX/fake-bin/curl" <<EOS
+#!/bin/sh
+printf '%s\n' "\$*" >>"$SANDBOX/curl.calls"
+exec cat "$SANDBOX/main.tar.gz"
+EOS
+  chmod 0755 "$SANDBOX/fake-bin/curl"
+  export PATH="$SANDBOX/fake-bin:$PATH"
+}
+
+@test "a piped install fetches the tarball and never runs a Makefile from the cwd" {
+  fake_curl_tarball
+  mkdir -p "$SANDBOX/hostile/bin" "$SANDBOX/tmp"
+  printf 'decoy\n' >"$SANDBOX/hostile/bin/df-p10k-themes"
+  printf 'install:\n\ttouch "%s/pwned"\n' "$SANDBOX" >"$SANDBOX/hostile/Makefile"
+  export TMPDIR="$SANDBOX/tmp"
+  PREFIX="$SANDBOX/piped-prefix"
+
+  run bash -c 'cd "$1" && PREFIX="$2" bash <"$3"' _ \
+    "$SANDBOX/hostile" "$PREFIX" "$REPO_ROOT/install.sh"
+
+  [ "$status" -eq 0 ]
+  [ ! -e "$SANDBOX/pwned" ]
+  assert_file_contains "$SANDBOX/curl.calls" \
+    "https://github.com/bladhl/df-p10k-themes/archive/refs/heads/main.tar.gz"
+  cmp -s "$PREFIX/bin/df-p10k-themes" "$CLI"
+  [ -f "$PREFIX/share/df-p10k-themes/themes/catppuccin-mocha.zsh" ]
+  [ -z "$(ls -A "$TMPDIR")" ]
+}
+
+@test "a checkout install uses the local tree without downloading" {
+  fake_curl_tarball
+  PREFIX="$SANDBOX/checkout-prefix"
+
+  run env PREFIX="$PREFIX" "$REPO_ROOT/install.sh"
+
+  [ "$status" -eq 0 ]
+  [ ! -e "$SANDBOX/curl.calls" ]
+  cmp -s "$PREFIX/bin/df-p10k-themes" "$CLI"
+}
