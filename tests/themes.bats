@@ -136,3 +136,19 @@ theme_files() {
     [ "$status" -eq 0 ] || { echo "default accent rejected for $theme: $default" >&2; return 1; }
   done < <(theme_files)
 }
+
+# Stock p10k-rainbow.zsh calls my_git_formatter() with no argument (only the
+# lean/classic presets pass 1/0), so the found palette must be the default —
+# otherwise every rainbow git segment renders in c_muted on its state pill.
+@test "my_git_formatter without an argument paints the found palette" {
+  df_cli init >/dev/null
+  df_cli apply catppuccin-mocha >/dev/null || { echo "apply failed: catppuccin-mocha" >&2; return 1; }
+  run zsh -f -c '
+    POWERLEVEL9K_DIR_BACKGROUND=1
+    source "$1" || exit 1
+    VCS_STATUS_LOCAL_BRANCH=main VCS_STATUS_NUM_UNSTAGED=1 my_git_formatter
+    [[ $my_git_format == *"%F{$_DF_P10K_VCS_NAME}"* && $my_git_format != *"%F{$_DF_P10K_VCS_MUTED}"* ]] \
+      || { print -r -- "$my_git_format"; exit 1; }
+  ' df-p10k-themes "$(active_file)"
+  [ "$status" -eq 0 ] || { echo "found palette not applied: $output" >&2; return 1; }
+}

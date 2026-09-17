@@ -395,7 +395,9 @@ function my_git_formatter() {
     return
   fi
 
-  if (( $1 )); then
+  # Stock p10k-rainbow.zsh calls my_git_formatter() with no argument (only
+  # lean/classic pass 1/0), so a missing argument means "found", not "loading".
+  if (( ${1:-1} )); then
     local       meta='%f'
     local       icon="%F{$_DF_P10K_VCS_BRANCH_ICON}"
     local       name="%F{$_DF_P10K_VCS_NAME}"
