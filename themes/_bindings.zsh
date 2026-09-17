@@ -234,6 +234,13 @@ fi
 #   classic    same foreground, plus one shared surface background below
 #   rainbow    POWERLEVEL9K_<seg>_BACKGROUND = hue
 #              POWERLEVEL9K_<seg>_FOREGROUND = on-color of hue
+# TIME, PUBLIC_IP and the generic ASDF fallback are low-emphasis info, so
+# their "hue" is c_subtext: a plain foreground in lean/classic, and in
+# rainbow a neutral pill with the picked on-color — the counterpart of stock
+# rainbow's black-on-white TIME pill. They used to stay transparent in
+# rainbow over a 4.5:1 worry; under the 3.0:1 non-text floor that pair
+# clears easily (mocha: 7.4:1), and tests/contrast.bats checks it for every
+# theme exactly like any other row here.
 typeset -gA _DF_P10K_SEGMENT_HUE=(
   VCS_CLEAN                        $c_ok       VCS_MODIFIED               $c_warn
   VCS_UNTRACKED                    $c_sapphire
@@ -241,6 +248,7 @@ typeset -gA _DF_P10K_SEGMENT_HUE=(
   STATUS_ERROR                     $c_error    STATUS_ERROR_PIPE          $c_ruby
   STATUS_ERROR_SIGNAL              $c_mauve
   COMMAND_EXECUTION_TIME           $c_peach
+  TIME                             $c_subtext PUBLIC_IP                  $c_subtext
   CONTEXT                          $c_yellow   CONTEXT_ROOT               $c_error
   BACKGROUND_JOBS                  $c_lavender
   BATTERY_LOW                      $c_error    BATTERY_DISCONNECTED       $c_peach
@@ -258,6 +266,7 @@ typeset -gA _DF_P10K_SEGMENT_HUE=(
   ASDF_ERLANG                      $c_ruby     ASDF_FLUTTER               $c_sapphire
   ASDF_DOTNET_CORE                 $c_mauve    ASDF_JULIA                 $c_pink
   ASDF_POSTGRES                    $c_sapphire
+  ASDF                             $c_subtext
   NODE_VERSION                     $c_green    NODENV                     $c_green
   NODEENV                          $c_green    NVM                        $c_green
   GO_VERSION                       $c_sky      GOENV                      $c_sky
@@ -303,33 +312,23 @@ done
 unset _df_p10k_seg _df_p10k_hue
 [[ $_DF_P10K_STYLE == classic ]] && typeset -g POWERLEVEL9K_BACKGROUND=$c_surface
 
-#--- muted / de-emphasized segments -------------------------------------------
+#--- decorative segments ----------------------------------------------------
 # RULER, MULTILINE_FIRST_PROMPT_GAP and VCS_LOADING are decorative or
-# placeholder content, not "real" segments; TIME, the generic ASDF fallback
-# and PUBLIC_IP are deliberately low-emphasis info. All of them stay a plain
-# muted/subtext foreground in every style — in lean/classic that's identical
-# to a normal table entry (classic's shared surface pill still applies, same
-# as stock p10k's own segments that don't set a background of their own).
+# placeholder content, not "real" segments, so they stay a plain muted
+# foreground in every style — in lean/classic that is identical to a normal
+# table entry (classic's shared surface pill still applies, same as stock
+# p10k's own segments that don't set a background of their own).
 typeset -g POWERLEVEL9K_RULER_FOREGROUND=$c_muted
 typeset -g POWERLEVEL9K_MULTILINE_FIRST_PROMPT_GAP_FOREGROUND=$c_muted
 typeset -g POWERLEVEL9K_VCS_LOADING_FOREGROUND=$c_muted
-typeset -g POWERLEVEL9K_TIME_FOREGROUND=$c_subtext
-typeset -g POWERLEVEL9K_ASDF_FOREGROUND=$c_subtext
-typeset -g POWERLEVEL9K_PUBLIC_IP_FOREGROUND=$c_subtext
 if [[ $_DF_P10K_STYLE == rainbow ]]; then
-  # Rainbow is different: it would otherwise paint each of these its own
-  # background pill from the table below, and a muted/subtext tone is by
-  # construction close in luminance to both c_base and c_text, so it often
-  # can't reach 4.5:1 as a background against either on-color. Keeping them
-  # transparent instead matches stock p10k's own MULTILINE_FIRST_PROMPT_GAP
-  # (transparent even in ITS rainbow preset), and clears any pill a preset
-  # already painted (stock rainbow does, for VCS_LOADING).
+  # Keep them transparent even here, matching stock p10k's own
+  # MULTILINE_FIRST_PROMPT_GAP (transparent in ITS rainbow preset too), and
+  # clear any pill a preset already painted (stock rainbow does, for
+  # VCS_LOADING).
   typeset -g POWERLEVEL9K_RULER_BACKGROUND=
   typeset -g POWERLEVEL9K_MULTILINE_FIRST_PROMPT_GAP_BACKGROUND=
   typeset -g POWERLEVEL9K_VCS_LOADING_BACKGROUND=
-  typeset -g POWERLEVEL9K_TIME_BACKGROUND=
-  typeset -g POWERLEVEL9K_ASDF_BACKGROUND=
-  typeset -g POWERLEVEL9K_PUBLIC_IP_BACKGROUND=
 fi
 
 #--- accent override --------------------------------------------------------
