@@ -8,7 +8,7 @@ typeset -gA THEME_PALETTE=(
   green   '#a7c080'  aqua    '#83c092'  blue    '#7fbbb3'
   purple  '#d699b6'
   fg      '#d3c6aa'  grey2   '#9da9a0'  grey1   '#859289'
-  grey0   '#7a8478'  bg0     '#2d353b'
+  grey0   '#7a8478'  bg0     '#2d353b'  bg_dim  '#232a2e'
 )
 
 THEME_ACCENTS=(green aqua blue yellow orange purple red)
@@ -21,6 +21,12 @@ typeset -g c_error=${THEME_PALETTE[red]}
 typeset -g c_info=${THEME_PALETTE[blue]}
 typeset -g c_muted=${THEME_PALETTE[grey0]}
 typeset -g c_subtext=${THEME_PALETTE[grey2]}
+
+# Surface roles: bg_dim is Everforest's own darker-than-editor background
+# (used upstream for sidebars), the natural pick for a classic-mode surface.
+typeset -g c_base=${THEME_PALETTE[bg0]}
+typeset -g c_surface=${THEME_PALETTE[bg_dim]}
+typeset -g c_text=${THEME_PALETTE[fg]}
 
 typeset -g c_red=${THEME_PALETTE[red]}
 typeset -g c_ruby=${THEME_PALETTE[orange]}

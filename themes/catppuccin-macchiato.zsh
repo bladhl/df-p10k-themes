@@ -12,6 +12,7 @@ typeset -gA THEME_PALETTE=(
   text      '#cad3f5'  subtext1 '#b8c0e0'  subtext0 '#a5adcb'
   overlay2  '#939ab7'  overlay1 '#8087a2'  overlay0 '#6e738d'
   surface2  '#5b6078'  surface1 '#494d64'  surface0 '#363a4f'
+  base      '#24273a'  mantle   '#1e2030'  crust    '#181926'
 )
 
 THEME_ACCENTS=(mauve blue green peach red yellow teal sky sapphire lavender pink rosewater)
@@ -24,6 +25,12 @@ typeset -g c_error=${THEME_PALETTE[red]}
 typeset -g c_info=${THEME_PALETTE[sapphire]}
 typeset -g c_muted=${THEME_PALETTE[overlay0]}
 typeset -g c_subtext=${THEME_PALETTE[subtext0]}
+
+# Surface roles: crust is the darkest neutral Catppuccin ships, giving
+# classic-mode segments the most contrast against this dark palette's text.
+typeset -g c_base=${THEME_PALETTE[base]}
+typeset -g c_surface=${THEME_PALETTE[crust]}
+typeset -g c_text=${THEME_PALETTE[text]}
 
 typeset -g c_red=${THEME_PALETTE[red]}
 typeset -g c_ruby=${THEME_PALETTE[maroon]}

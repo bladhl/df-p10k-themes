@@ -25,6 +25,12 @@ typeset -g c_info=${THEME_PALETTE[foam]}
 typeset -g c_muted=${THEME_PALETTE[muted]}
 typeset -g c_subtext=${THEME_PALETTE[subtle]}
 
+# Surface roles: Rosé Pine already names its own elevated-surface step
+# "surface" — reuse it directly rather than inventing a separate mapping.
+typeset -g c_base=${THEME_PALETTE[base]}
+typeset -g c_surface=${THEME_PALETTE[surface]}
+typeset -g c_text=${THEME_PALETTE[text]}
+
 typeset -g c_red=${THEME_PALETTE[love]}
 typeset -g c_ruby=${THEME_PALETTE[rose]}
 typeset -g c_peach=${THEME_PALETTE[gold]}

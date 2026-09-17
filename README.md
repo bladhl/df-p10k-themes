@@ -83,11 +83,50 @@ it lands as a 1400×260 PNG. See [CONTRIBUTING.md](CONTRIBUTING.md).
    ↓ then sources (from .zshrc hook)
 ~/.config/df-p10k-themes/active.zsh   <-- this tool writes here
    ↓ overrides
-POWERLEVEL9K_*_FOREGROUND vars and redefines `my_git_formatter`
+POWERLEVEL9K_*_FOREGROUND/_BACKGROUND vars and redefines `my_git_formatter`
 ```
 
 Switching themes rewrites only `active.zsh`. Uninstall removes the managed hook
 block from `.zshrc` and the override file. Your prompt config is yours.
+
+## Prompt styles
+
+`active.zsh` is sourced *after* `~/.p10k.zsh`, so it can see which p10k preset
+you're running and adapt to it — no setting to pick, no config to keep in
+sync:
+
+| Style     | How it's detected                              | What we set |
+|-----------|-------------------------------------------------|-------------|
+| `lean`/`pure` | Neither of the below is set                  | A plain foreground per segment (today's look) |
+| `classic` | `POWERLEVEL9K_BACKGROUND` is non-empty           | Same foregrounds, plus one shared segment background (`c_surface`) that replaces the preset's own gray |
+| `rainbow` | `POWERLEVEL9K_DIR_BACKGROUND` is non-empty        | Each segment's hue becomes its background; the foreground is picked for contrast, not brand color |
+
+> A `lean` config can set `POWERLEVEL9K_BACKGROUND=` to an **empty** string on
+> purpose (a fully transparent prompt — the upstream `p10k-lean.zsh` itself
+> does this). Detection treats that the same as "unset", never as "classic".
+
+Every theme's `THEME_PALETTE` and the docs it ships were built against these
+three presets. Anything more exotic (a hand-edited `~/.p10k.zsh` mixing
+markers from more than one preset) isn't detected and falls back to `lean`.
+
+`tests/contrast.bats` enforces WCAG 2.x contrast for every theme in every
+style, and every theme passes it:
+
+- **4.5:1** where the foreground is `c_text`, the neutral reading-text role,
+  sitting directly on `c_base`/`c_surface` — the one pair here shaped like
+  actual body text (WCAG 1.4.3).
+- **3.0:1** everywhere else: every chromatic hue against `c_base`/`c_surface`
+  in `lean`/`classic`, a rainbow segment's on-color foreground against its
+  own hue-colored background, and `c_muted`/`c_subtext` in any style. Prompt
+  segments are short, bold, colored UI labels, not paragraphs of body text —
+  WCAG 1.4.11 (non-text/UI contrast) is the applicable floor for them.
+
+A handful of accent colors didn't clear 3.0:1 against their theme's own
+`c_base`/`c_surface` as shipped upstream. Each was retuned by the minimal
+HSL lightness change needed to clear the bar, keeping its hue and saturation
+untouched — so it reads as the same color, just legible. Every adjusted
+value is commented inline in its `themes/<name>.zsh` with the ratio that
+forced it.
 
 ## Install
 

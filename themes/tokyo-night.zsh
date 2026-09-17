@@ -8,7 +8,7 @@ typeset -gA THEME_PALETTE=(
   green   '#9ece6a'  teal    '#73dacb'  cyan    '#7dcfff'
   blue    '#7aa2f7'  magenta '#bb9af7'  purple  '#9d7cd8'
   fg      '#c0caf5'  fg_dark '#a9b1d6'  comment '#565f89'
-  ice     '#b4f9f8'  turquoise '#2ac3de'
+  ice     '#b4f9f8'  turquoise '#2ac3de'  ui_fg  '#787c99'
   bg      '#1a1b26'  bg_dark '#16161e'
 )
 
@@ -20,8 +20,16 @@ typeset -g c_ok=${THEME_PALETTE[green]}
 typeset -g c_warn=${THEME_PALETTE[orange]}
 typeset -g c_error=${THEME_PALETTE[red]}
 typeset -g c_info=${THEME_PALETTE[cyan]}
-typeset -g c_muted=${THEME_PALETTE[comment]}
+typeset -g c_muted=${THEME_PALETTE[ui_fg]} # comment only reached 2.76:1/2.91:1; ui_fg is
+                                            # the theme's own editor.foreground/icon.foreground
+                                            # gray and clears 3.0:1 comfortably.
 typeset -g c_subtext=${THEME_PALETTE[fg_dark]}
+
+# Surface roles: bg_dark is Tokyo Night's own darker background variant —
+# the natural pick for a classic-mode surface distinct from the editor bg.
+typeset -g c_base=${THEME_PALETTE[bg]}
+typeset -g c_surface=${THEME_PALETTE[bg_dark]}
+typeset -g c_text=${THEME_PALETTE[fg]}
 
 typeset -g c_red=${THEME_PALETTE[red]}
 typeset -g c_ruby=${THEME_PALETTE[red]}

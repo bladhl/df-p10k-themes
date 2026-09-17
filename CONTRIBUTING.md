@@ -32,8 +32,40 @@ brew install bats-core shellcheck
 
 1. Copy `themes/_template.zsh` to `themes/<your-theme>.zsh`.
 2. Fill in `THEME_PALETTE`, `THEME_ACCENTS`, `THEME_ACCENT_DEFAULT`, and the
-   `c_*` role globals. The template documents the full contract.
-3. Run `make syntax` and `make test`.
+   `c_*` role globals. The template documents the full contract, including
+   three surface roles used by the `classic`/`rainbow` prompt styles (see
+   "Prompt styles" in the README):
+   - `c_base` — the palette's own page/terminal background.
+   - `c_surface` — the shared segment background for `classic` style. Pick
+     whichever step gives text the best contrast: the darkest neutral on a
+     dark theme, the lightest on a light one, distinct from `c_base` where
+     the palette has one (many palettes call this "crust"/"mantle" on dark
+     variants). Reuse `c_base` only if the upstream palette truly has
+     nothing else.
+   - `c_text` — primary on-surface text color, used by the `rainbow` style's
+     contrast picker (`_df_p10k_on_color` in `_bindings.zsh`).
+
+   `c_base`/`c_surface`/`c_text` must be `#rrggbb` hex — the WCAG contrast
+   math only understands that format.
+3. Run `make syntax` and `make test` (`make test` includes
+   `tests/contrast.bats`, which checks WCAG contrast for every role against
+   `c_base`/`c_surface` in all three prompt styles). The bar is **4.5:1**
+   only for `c_text` sitting directly on `c_base`/`c_surface` (that's the one
+   pair shaped like reading text); everything else — every chromatic hue,
+   `c_muted`, `c_subtext`, and a rainbow segment's on-color foreground
+   against its own hue background — needs **3.0:1** (WCAG 1.4.11, the
+   non-text/UI floor: prompt segments are short bold color chips, not body
+   text). This suite must stay green; a failing role is not an acceptable
+   partial.
+   If a role fails, first prefer a different *already-shipped* step of the
+   same upstream palette (e.g. `overlay1` instead of `overlay0`, or letting
+   `c_surface` reuse `c_base` when the palette has nothing darker/lighter to
+   move to). If no shipped step clears the bar, retune the color itself by
+   the minimal HSL lightness change needed to reach 3.0:1 against every
+   background it's paired with — keep the hue and saturation untouched so it
+   still reads as the same color — and comment the change inline:
+   `# adjusted from #oldhex (X.XX:1 on base) → 3.0:1`. Never loosen the test
+   and never invent an unrelated color.
 4. Add the theme to the table in `README.md` and to the `Unreleased` section
    of `CHANGELOG.md`.
 5. Optionally add a preview — see below.
